@@ -33,7 +33,16 @@ export function useCompanies(uid: string) {
     // Real-time listener — syncs across all devices instantly
     const unsub = onSnapshot(companiesCol(uid), snap => {
       const data = snap.docs
-        .map(d => d.data() as Company)
+        .map(d => {
+          const raw = d.data() as Company & { internDates?: string };
+          // 旧フィールド名 internDates → eventDates に自動マッピング
+          if (!raw.eventDates && raw.internDates) {
+            raw.eventDates = raw.internDates;
+          }
+          // type フィールドがない旧データはインターンとして扱う
+          if (!raw.type) raw.type = 'インターン';
+          return raw as Company;
+        })
         .sort((a, b) => {
           if (!a.deadline && !b.deadline) return 0;
           if (!a.deadline) return 1;

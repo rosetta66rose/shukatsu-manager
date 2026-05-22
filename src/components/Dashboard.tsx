@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Plus, Building2, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import type { Company, Status } from '../types';
+import { INTERN_STATUSES, HONSEN_STATUSES } from '../types';
 import { formatDeadline, daysUntil } from '../utils/date';
 
 interface Props {
@@ -10,29 +11,30 @@ interface Props {
   onUpdateStatus: (id: string, status: Status) => void;
 }
 
-const STATUSES: Status[] = ['未応募', '応募済み', '選考中', '参加確定', '辞退', '不合格'];
+type Filter = '全て' | 'インターン' | '本選考';
 
 export function Dashboard({ companies, onEdit, onAdd, onUpdateStatus }: Props) {
+  const [filter, setFilter] = useState<Filter>('全て');
+
+  const filtered = useMemo(() =>
+    filter === '全て' ? companies : companies.filter(c => c.type === filter),
+    [companies, filter]
+  );
+
   const stats = useMemo(() => ({
-    total: companies.length,
-    confirmed: companies.filter(c => c.status === '参加確定').length,
-    applied: companies.filter(c => c.status === '応募済み' || c.status === '選考中').length,
-    urgent: companies.filter(c => {
+    total: filtered.length,
+    urgent: filtered.filter(c => {
       if (!c.deadline) return false;
       const d = daysUntil(c.deadline);
       return d !== null && d >= 0 && d <= 7 && c.status === '未応募';
     }).length,
-  }), [companies]);
+    active: filtered.filter(c =>
+      ['応募済み', '選考中', 'ES通過', '一次面接', '二次面接', '最終面接'].includes(c.status)
+    ).length,
+    goal: filtered.filter(c => c.status === '参加確定' || c.status === '内定').length,
+  }), [filtered]);
 
-  const sorted = useMemo(() =>
-    [...companies].sort((a, b) => {
-      if (!a.deadline && !b.deadline) return 0;
-      if (!a.deadline) return 1;
-      if (!b.deadline) return -1;
-      return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
-    }),
-    [companies]
-  );
+  const goalLabel = filter === '本選考' ? '内定' : filter === 'インターン' ? '参加確定' : '内定/参加確定';
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -42,25 +44,45 @@ export function Dashboard({ companies, onEdit, onAdd, onUpdateStatus }: Props) {
           onClick={onAdd}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
         >
-          <Plus size={16} />
-          企業を追加
+          <Plus size={16} />企業を追加
         </button>
+      </div>
+
+      {/* Filter tabs */}
+      <div className="flex gap-2 mb-6">
+        {(['全て', 'インターン', '本選考'] as Filter[]).map(f => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              filter === f
+                ? f === '本選考' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {f}
+            <span className="ml-1.5 text-xs opacity-75">
+              {f === '全て' ? companies.length : companies.filter(c => c.type === f).length}
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <StatCard icon={<Building2 size={20} className="text-blue-600" />} label="登録企業数" value={stats.total} color="blue" />
-        <StatCard icon={<Clock size={20} className="text-yellow-600" />} label="締切7日以内" value={stats.urgent} color="yellow" />
-        <StatCard icon={<AlertCircle size={20} className="text-orange-600" />} label="応募・選考中" value={stats.applied} color="orange" />
-        <StatCard icon={<CheckCircle size={20} className="text-green-600" />} label="参加確定" value={stats.confirmed} color="green" />
+        <StatCard icon={<Building2 size={20} className="text-blue-600" />}  label="企業数"      value={stats.total}  color="blue" />
+        <StatCard icon={<Clock size={20} className="text-yellow-600" />}    label="締切7日以内" value={stats.urgent} color="yellow" />
+        <StatCard icon={<AlertCircle size={20} className="text-orange-600" />} label="選考中"   value={stats.active} color="orange" />
+        <StatCard icon={<CheckCircle size={20} className="text-green-600" />} label={goalLabel} value={stats.goal}  color="green" />
       </div>
 
-      {/* Company list */}
+      {/* Company table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">種別</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">企業名</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">ステータス</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">応募締切</th>
@@ -70,18 +92,26 @@ export function Dashboard({ companies, onEdit, onAdd, onUpdateStatus }: Props) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {sorted.map(company => {
+              {filtered.map(company => {
                 const days = company.deadline ? daysUntil(company.deadline) : null;
                 const isUrgent = days !== null && days >= 0 && days <= 3;
                 const isPast = days !== null && days < 0;
+                const statuses = company.type === '本選考' ? HONSEN_STATUSES : INTERN_STATUSES;
 
                 return (
                   <tr key={company.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        company.type === '本選考'
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {company.type}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
                       <div className="font-medium text-gray-900">{company.name}</div>
-                      {company.notes && (
-                        <div className="text-xs text-gray-400 mt-0.5">{company.notes}</div>
-                      )}
+                      {company.notes && <div className="text-xs text-gray-400 mt-0.5">{company.notes}</div>}
                     </td>
                     <td className="px-4 py-3">
                       <select
@@ -89,7 +119,7 @@ export function Dashboard({ companies, onEdit, onAdd, onUpdateStatus }: Props) {
                         onChange={e => onUpdateStatus(company.id, e.target.value as Status)}
                         className="text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                       >
-                        {STATUSES.map(s => <option key={s}>{s}</option>)}
+                        {statuses.map(s => <option key={s}>{s}</option>)}
                       </select>
                     </td>
                     <td className="px-4 py-3">
@@ -105,9 +135,7 @@ export function Dashboard({ companies, onEdit, onAdd, onUpdateStatus }: Props) {
                           )}
                           {isPast && <div className="text-xs text-gray-400">締切済み</div>}
                         </div>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
+                      ) : <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-4 py-3 text-gray-600 max-w-xs">
                       {company.selectionProcess || <span className="text-gray-400">—</span>}
@@ -135,10 +163,7 @@ export function Dashboard({ companies, onEdit, onAdd, onUpdateStatus }: Props) {
 }
 
 function StatCard({ icon, label, value, color }: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  color: 'blue' | 'yellow' | 'orange' | 'green';
+  icon: React.ReactNode; label: string; value: number; color: 'blue' | 'yellow' | 'orange' | 'green';
 }) {
   const bg = { blue: 'bg-blue-50', yellow: 'bg-yellow-50', orange: 'bg-orange-50', green: 'bg-green-50' }[color];
   return (

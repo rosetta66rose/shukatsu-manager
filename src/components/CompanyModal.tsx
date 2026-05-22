@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import type { Company, Status } from '../types';
-
-const STATUSES: Status[] = ['未応募', '応募済み', '選考中', '参加確定', '辞退', '不合格'];
+import type { Company, CompanyType } from '../types';
+import { INTERN_STATUSES, HONSEN_STATUSES } from '../types';
 
 interface Props {
   company: Partial<Company> | null;
@@ -11,10 +10,11 @@ interface Props {
 }
 
 const emptyForm = (): Omit<Company, 'id'> => ({
+  type: 'インターン',
   name: '',
   deadline: null,
   selectionProcess: '',
-  internDates: '',
+  eventDates: '',
   location: '',
   notes: '',
   status: '未応募',
@@ -35,7 +35,14 @@ export function CompanyModal({ company, onSave, onClose }: Props) {
 
   const set = (key: keyof typeof form) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => setForm(prev => ({ ...prev, [key]: e.target.value || (key === 'deadline' ? null : e.target.value) }));
+  ) => setForm(prev => ({ ...prev, [key]: e.target.value }));
+
+  const statuses = form.type === '本選考' ? HONSEN_STATUSES : INTERN_STATUSES;
+  const eventDatesLabel = form.type === '本選考' ? '面接日' : '参加日';
+
+  const handleTypeChange = (type: CompanyType) => {
+    setForm(prev => ({ ...prev, type, status: '未応募' }));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +63,29 @@ export function CompanyModal({ company, onSave, onClose }: Props) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          {/* 種別 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">種別</label>
+            <div className="flex gap-2">
+              {(['インターン', '本選考'] as CompanyType[]).map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => handleTypeChange(t)}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    form.type === t
+                      ? t === 'インターン'
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-purple-600 text-white border-purple-600'
+                      : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">企業名 *</label>
             <input
@@ -74,7 +104,7 @@ export function CompanyModal({ company, onSave, onClose }: Props) {
               onChange={set('status')}
               className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {STATUSES.map(s => <option key={s}>{s}</option>)}
+              {statuses.map(s => <option key={s}>{s}</option>)}
             </select>
           </div>
 
@@ -83,7 +113,7 @@ export function CompanyModal({ company, onSave, onClose }: Props) {
             <input
               type="datetime-local"
               value={form.deadline ? form.deadline.slice(0, 16) : ''}
-              onChange={e => setForm(prev => ({ ...prev, deadline: e.target.value ? e.target.value : null }))}
+              onChange={e => setForm(prev => ({ ...prev, deadline: e.target.value || null }))}
               className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -99,12 +129,12 @@ export function CompanyModal({ company, onSave, onClose }: Props) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">インターン開催日</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{eventDatesLabel}</label>
             <input
-              value={form.internDates}
-              onChange={set('internDates')}
+              value={form.eventDates}
+              onChange={set('eventDates')}
               className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="例: 8/24-9/4"
+              placeholder={form.type === '本選考' ? '例: 7/10, 7/20-7/21' : '例: 8/24-9/4'}
             />
           </div>
 

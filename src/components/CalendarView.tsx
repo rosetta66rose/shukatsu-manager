@@ -12,42 +12,104 @@ interface Props {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  '未応募': '#6366f1',
+  '未応募':   '#6366f1',
   '応募済み': '#3b82f6',
-  '選考中': '#f59e0b',
+  'ES通過':   '#06b6d4',
+  '一次面接': '#f59e0b',
+  '二次面接': '#f97316',
+  '最終面接': '#a855f7',
+  '選考中':   '#f59e0b',
   '参加確定': '#22c55e',
-  '辞退': '#f97316',
-  '不合格': '#ef4444',
+  '内定':     '#16a34a',
+  '辞退':     '#9ca3af',
+  '不合格':   '#ef4444',
 };
+
+function parseEventDates(eventDates: string): { start: string; end?: string }[] {
+  if (!eventDates) return [];
+  const year = 2026;
+  const results: { start: string; end?: string }[] = [];
+  const parts = eventDates.split(',').map(s => s.trim()).filter(Boolean);
+
+  for (const part of parts) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(part)) {
+      results.push({ start: part }); continue;
+    }
+    const fullRange = part.match(/^(\d+)\/(\d+)-(\d+)\/(\d+)$/);
+    if (fullRange) {
+      const start = new Date(year, +fullRange[1] - 1, +fullRange[2]);
+      const end   = new Date(year, +fullRange[3] - 1, +fullRange[4] + 1);
+      results.push({ start: fmt(start), end: fmt(end) }); continue;
+    }
+    const shortRange = part.match(/^(\d+)\/(\d+)-(\d+)$/);
+    if (shortRange) {
+      const start = new Date(year, +shortRange[1] - 1, +shortRange[2]);
+      const end   = new Date(year, +shortRange[1] - 1, +shortRange[3] + 1);
+      results.push({ start: fmt(start), end: fmt(end) }); continue;
+    }
+    const single = part.match(/^(\d+)\/(\d+)$/);
+    if (single) {
+      results.push({ start: fmt(new Date(year, +single[1] - 1, +single[2])) });
+    }
+  }
+  return results;
+}
+
+function fmt(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
 
 export function CalendarView({ companies, onEdit }: Props) {
   const [tooltip, setTooltip] = useState<{ company: Company; x: number; y: number } | null>(null);
 
   const events = useMemo(() => {
     const evts: object[] = [];
-
     companies.forEach(company => {
+      const isHonsen = company.type === '本選考';
+
+      // 締切イベント
       if (company.deadline) {
         evts.push({
           id: `deadline-${company.id}`,
-          title: `📋 ${company.name} 締切`,
+          title: `${isHonsen ? '📝' : '📋'} ${company.name} 締切`,
           date: company.deadline.slice(0, 10),
           backgroundColor: STATUS_COLORS[company.status] ?? '#6366f1',
           borderColor: STATUS_COLORS[company.status] ?? '#6366f1',
-          extendedProps: { companyId: company.id, type: 'deadline' },
+          extendedProps: { companyId: company.id },
+        });
+      }
+
+      // 参加日 / 面接日イベント
+      if (company.eventDates) {
+        const confirmed = isHonsen
+          ? company.status === '内定'
+          : company.status === '参加確定';
+        // 確定済み: 濃い色 / 未確定: 薄い色
+        const color = isHonsen
+          ? confirmed ? '#7c3aed' : '#c084fc'
+          : confirmed ? '#16a34a' : '#86efac';
+        const textColor = confirmed ? '#ffffff' : '#374151';
+        parseEventDates(company.eventDates).forEach((d, i) => {
+          evts.push({
+            id: `event-${company.id}-${i}`,
+            title: `${confirmed ? (isHonsen ? '🎉' : '✅') : (isHonsen ? '🤝' : '🏢')} ${company.name}`,
+            start: d.start,
+            ...(d.end ? { end: d.end } : {}),
+            backgroundColor: color,
+            borderColor: color,
+            textColor,
+            extendedProps: { companyId: company.id },
+          });
         });
       }
     });
-
     return evts;
   }, [companies]);
 
   const handleEventClick = (info: EventClickArg) => {
     const companyId = info.event.extendedProps['companyId'] as string;
     const company = companies.find(c => c.id === companyId);
-    if (company) {
-      setTooltip({ company, x: info.jsEvent.clientX, y: info.jsEvent.clientY });
-    }
+    if (company) setTooltip({ company, x: info.jsEvent.clientX, y: info.jsEvent.clientY });
   };
 
   return (
@@ -55,13 +117,24 @@ export function CalendarView({ companies, onEdit }: Props) {
       <h1 className="text-2xl font-bold text-gray-900 mb-6">カレンダー</h1>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-3 mb-4">
+      <div className="flex flex-wrap gap-3 mb-4 text-xs text-gray-600">
         {Object.entries(STATUS_COLORS).map(([status, color]) => (
-          <div key={status} className="flex items-center gap-1.5 text-xs text-gray-600">
-            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-            {status}
+          <div key={status} className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />{status}
           </div>
         ))}
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#86efac' }} />参加日（未確定）
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#16a34a' }} />✅ 参加確定
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#c084fc' }} />面接日（未内定）
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#7c3aed' }} />🎉 内定
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -71,39 +144,29 @@ export function CalendarView({ companies, onEdit }: Props) {
           locale={jaLocale}
           events={events}
           eventClick={handleEventClick}
-          headerToolbar={{
-            left: 'prev,next today',
-            center: 'title',
-            right: 'dayGridMonth',
-          }}
+          headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth' }}
           height="auto"
-          eventTimeFormat={{ hour: '2-digit', minute: '2-digit', meridiem: false }}
         />
       </div>
 
       {tooltip && (
         <div
           className="fixed z-50 bg-white border border-gray-200 rounded-xl shadow-xl p-4 w-72"
-          style={{ left: Math.min(tooltip.x + 12, window.innerWidth - 300), top: Math.min(tooltip.y + 12, window.innerHeight - 250) }}
+          style={{ left: Math.min(tooltip.x + 12, window.innerWidth - 300), top: Math.min(tooltip.y + 12, window.innerHeight - 260) }}
           onClick={e => e.stopPropagation()}
         >
-          <div className="font-semibold text-gray-900 mb-2">{tooltip.company.name}</div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              tooltip.company.type === '本選考' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+            }`}>{tooltip.company.type}</span>
+            <span className="font-semibold text-gray-900">{tooltip.company.name}</span>
+          </div>
           <div className="text-sm space-y-1 text-gray-600">
-            {tooltip.company.deadline && (
-              <div><span className="font-medium">締切:</span> {new Date(tooltip.company.deadline).toLocaleString('ja-JP')}</div>
-            )}
-            {tooltip.company.selectionProcess && (
-              <div><span className="font-medium">選考:</span> {tooltip.company.selectionProcess}</div>
-            )}
-            {tooltip.company.internDates && (
-              <div><span className="font-medium">開催日:</span> {tooltip.company.internDates}</div>
-            )}
-            {tooltip.company.location && (
-              <div><span className="font-medium">場所:</span> {tooltip.company.location}</div>
-            )}
-            {tooltip.company.memo && (
-              <div className="mt-2 p-2 bg-gray-50 rounded text-xs">{tooltip.company.memo}</div>
-            )}
+            {tooltip.company.deadline && <div><span className="font-medium">締切:</span> {new Date(tooltip.company.deadline).toLocaleString('ja-JP')}</div>}
+            {tooltip.company.selectionProcess && <div><span className="font-medium">選考:</span> {tooltip.company.selectionProcess}</div>}
+            {tooltip.company.eventDates && <div><span className="font-medium">{tooltip.company.type === '本選考' ? '面接日' : '参加日'}:</span> {tooltip.company.eventDates}</div>}
+            {tooltip.company.location && <div><span className="font-medium">場所:</span> {tooltip.company.location}</div>}
+            {tooltip.company.memo && <div className="mt-2 p-2 bg-gray-50 rounded text-xs">{tooltip.company.memo}</div>}
           </div>
           <button
             onClick={() => { onEdit(tooltip.company); setTooltip(null); }}
