@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
+}
+
+#root {
+  width: 100%;
+  text-align: left;
+}
+
+/* FullCalendar overrides */
+.fc .fc-toolbar-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.fc .fc-button {
+  @apply bg-blue-600 border-blue-600;
+}
+.fc .fc-button:hover {
+  @apply bg-blue-700 border-blue-700;
+}
+.fc .fc-button-primary:not(:disabled).fc-button-active,
+.fc .fc-button-primary:not(:disabled):active {
+  @apply bg-blue-800 border-blue-800;
+}
+.fc-event {
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+.fc .fc-daygrid-day.fc-day-today {
+  background-color: #eff6ff;
+}
