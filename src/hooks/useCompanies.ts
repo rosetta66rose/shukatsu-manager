@@ -56,9 +56,10 @@ export function useCompanies(uid: string) {
     return unsub;
   }, [uid]);
 
-  const addCompany = async (company: Omit<Company, 'id'>) => {
+  const addCompany = async (company: Omit<Company, 'id'>): Promise<string> => {
     const id = Date.now().toString();
     await setDoc(companyDoc(uid, id), { ...company, id });
+    return id;
   };
 
   const updateCompany = async (id: string, updates: Partial<Company>) => {

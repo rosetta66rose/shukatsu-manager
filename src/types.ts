@@ -32,4 +32,6 @@ export interface Company {
   notes: string;
   status: Status;
   memo: string;
+  gcalDeadlineId?: string;   // Google Calendar event ID for deadline
+  gcalEventIds?: string[];   // Google Calendar event IDs for event dates
 }

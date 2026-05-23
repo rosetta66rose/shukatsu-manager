@@ -5,6 +5,7 @@ import jaLocale from '@fullcalendar/core/locales/ja';
 import { useMemo, useState } from 'react';
 import type { EventClickArg } from '@fullcalendar/core';
 import type { Company } from '../types';
+import { parseEventDates } from '../utils/date';
 
 interface Props {
   companies: Company[];
@@ -25,39 +26,6 @@ const STATUS_COLORS: Record<string, string> = {
   '不合格':   '#ef4444',
 };
 
-function parseEventDates(eventDates: string): { start: string; end?: string }[] {
-  if (!eventDates) return [];
-  const year = 2026;
-  const results: { start: string; end?: string }[] = [];
-  const parts = eventDates.split(',').map(s => s.trim()).filter(Boolean);
-
-  for (const part of parts) {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(part)) {
-      results.push({ start: part }); continue;
-    }
-    const fullRange = part.match(/^(\d+)\/(\d+)-(\d+)\/(\d+)$/);
-    if (fullRange) {
-      const start = new Date(year, +fullRange[1] - 1, +fullRange[2]);
-      const end   = new Date(year, +fullRange[3] - 1, +fullRange[4] + 1);
-      results.push({ start: fmt(start), end: fmt(end) }); continue;
-    }
-    const shortRange = part.match(/^(\d+)\/(\d+)-(\d+)$/);
-    if (shortRange) {
-      const start = new Date(year, +shortRange[1] - 1, +shortRange[2]);
-      const end   = new Date(year, +shortRange[1] - 1, +shortRange[3] + 1);
-      results.push({ start: fmt(start), end: fmt(end) }); continue;
-    }
-    const single = part.match(/^(\d+)\/(\d+)$/);
-    if (single) {
-      results.push({ start: fmt(new Date(year, +single[1] - 1, +single[2])) });
-    }
-  }
-  return results;
-}
-
-function fmt(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
 
 export function CalendarView({ companies, onEdit }: Props) {
   const [tooltip, setTooltip] = useState<{ company: Company; x: number; y: number } | null>(null);
